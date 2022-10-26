@@ -85,11 +85,12 @@ class AllLinksEmbedding:
 
     def fit_model(self, epochs=15, positive_samples_per_batch=512, negative_ratio=10):
         self.get_model().fit_generator(
-            self._batchifier(positive_samples=positive_samples_per_batch, negative_ratio=10),
+            self._batchifier(positive_samples=positive_samples_per_batch, negative_ratio=negative_ratio),
             epochs=epochs,
             steps_per_epoch=len(self.pairs) // positive_samples_per_batch,
             verbose=2
         )
+        return self.get_model().history.history
 
     def _get_normalized_movies(self):
         if self.normalized_movies is None:
@@ -113,7 +114,7 @@ class AllLinksEmbedding:
         closest = np.argsort(dists)[-10:]
         result = []
         for c in reversed(closest):
-            result.append(f"{self.movies[c][0]} {round(dists[c], 3)}")
+            result.append(f"{self.movies[c][0]} {str(dists[c])[:6]}")
         return result
 
     def similar_links(self, link):
@@ -122,28 +123,108 @@ class AllLinksEmbedding:
         closest = np.argsort(dists)[-10:]
         result = []
         for c in reversed(closest):
-            result.append(f"{self.top_links[c]} {round(dists[c], 3)}")
+            result.append(f"{self.top_links[c]} {str(dists[c])[:6]}")
         return result
 
     def save(self, model_path):
         self.get_model().save(model_path)
 
 
-def _get_emb_mod(model):
+class UnicLinksEmbedding(AllLinksEmbedding):
+
+  def _get_links_counter(self):
+    link_counts = Counter()
+    for movie in self.movies:
+      link_counts.update(list(set(movie[2])))
+    return link_counts
+
+
+class CategoryEmbedding(AllLinksEmbedding):
+
+  def _get_links_counter(self):
+    link_counts = Counter()
+    for movie in self.movies:
+      link_counts.update(list(item for item in movie[2] if item.startswith("Category:")))
+    return link_counts
+
+
+class FilmEmbedding(AllLinksEmbedding):
+
+  def _get_links_counter(self):
+    link_counts = Counter()
+    unic_names = set(item[0] for item in self.movies)
+    for movie in self.movies:
+      link_counts.update([item for item in movie[2] if item in unic_names])
+    return link_counts
+
+
+def _get_default_model():
     emb_mod = AllLinksEmbedding(all_movies)
-    emb_mod.model = keras.models.load_model(model.path)
+    emb_mod.model = keras.models.load_model("media/default")
     return emb_mod
 
 
-def get_similar_films(model, film):
-    embedding_model = usages_models.setdefault(model.id, _get_emb_mod(model))
+def get_similar_films(embedding_model, film):
     return embedding_model.similar_movies(film)
 
 
-# model_all_links = AllLinksEmbedding(all_movies)
-#
-# model_all_links.fit_model(4, 512)
-#
-# model_all_links.similar_links('Harry Potter (film series)')
-#
-# model_all_links.similar_movies('Harry Potter (film series)')
+def get_similar_links(embedding_model, link):
+    return embedding_model.similar_links(link)
+
+
+class EstimatedMovie:
+  def __init__(self, embedding_model, train_class, best, worst, **train_params):
+    self.embedding_model = embedding_model
+    self.train_class = train_class
+    self.best = best
+    self.worst = worst
+    self.train_params = train_params
+
+  def _get_X_y(self):
+    y = np.asarray([1 for _ in self.best] + [0 for _ in self.worst])
+    X = np.asarray([self.embedding_model._get_normalized_movies()[self.embedding_model.movie_to_idx[movie]] for movie in self.best + self.worst])
+    return X, y
+
+  def fit_model(self):
+    self.model = self.train_class(**self.train_params)
+    self.model.fit(*self._get_X_y())
+
+  def get_estimated_movie_rating(self, count):
+    estimated_movie_ratings = self.model.decision_function(self.embedding_model._get_normalized_movies())
+    best = np.argsort(estimated_movie_ratings)
+    bests = []
+    for c in reversed(best[-count:]):
+        bests.append(f"{self.embedding_model.movies[c][0]} {str(estimated_movie_ratings[c])[:6]}")
+
+    worsts = []
+    for c in best[:count]:
+        worsts.append(f"{self.embedding_model.movies[c][0]} {str(estimated_movie_ratings[c])[:6]}")
+    return bests, worsts
+
+  def get_info(self):
+    rotten_y = np.asarray([float(movie[-2][:-1]) / 100 for movie in self.embedding_model.movies if movie[-2]])
+    rotten_X = np.asarray([self.embedding_model._get_normalized_movies()[self.embedding_model.movie_to_idx[movie[0]]] for movie in self.embedding_model.movies if movie[-2]])
+    TRAINING_CUT_OFF = int(len(rotten_X) * 0.8)
+    regr = LinearRegression()
+    regr.fit(rotten_X[:TRAINING_CUT_OFF], rotten_y[:TRAINING_CUT_OFF])
+    error = (regr.predict(rotten_X[TRAINING_CUT_OFF:]) - rotten_y[TRAINING_CUT_OFF:])
+    print('mean square error %2.2f' % np.mean(error ** 2))
+    error = (np.mean(rotten_y[:TRAINING_CUT_OFF]) - rotten_y[TRAINING_CUT_OFF:])
+    print('mean square error %2.2f' % np.mean(error ** 2))
+
+
+def get_recommend_movies(model, best, worst):
+    m1 = EstimatedMovie(model, svm.SVC, best, worst, kernel='linear')
+    m1.fit_model()
+    return m1.get_estimated_movie_rating(10)
+
+
+def fit_embedding_model(embedding_model_class, embedding_size, epochs, positive_samples_per_batch, negative_ratio):
+    embedding_model = embedding_model_class(all_movies, embedding_size)
+    fit_result = embedding_model.fit_model(epochs, positive_samples_per_batch, negative_ratio)
+    return embedding_model, fit_result
+
+
+def add_fit_my_model(embedding_model, epochs, positive_samples_per_batch, negative_ratio):
+    fit_result = embedding_model.fit_model(epochs, positive_samples_per_batch, negative_ratio)
+    return embedding_model, fit_result

@@ -9,18 +9,38 @@ os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 django.setup()
 
 from similar_movies import models
+from recommend_films import _get_default_model
 
+usage_models = {"default": {"model": _get_default_model(),
+                            "name": "default",
+                            "epochs": 15}}
 
 @sync_to_async
 def get_model(model_id):
-    return models.EmbeddingModel.objects.get(id=model_id)
+    return usage_models.get(model_id)
 
 
 @sync_to_async
 def get_user_models(user_id):
-    user, create = models.User.objects.get_or_create(telegram_id=user_id)
-    user_models = models.EmbeddingModel.objects.filter(Q(user=user) | Q(user__role="default"))
-    return user_models
+    user_model = usage_models.get(user_id)
+    default_model = usage_models.get("default")
+    if user_model:
+        return default_model, user_model
+    else:
+        return default_model,
+
+
+@sync_to_async
+def save_user_model(user_id, model, name, epochs):
+    usage_models[user_id] = {"model": model,
+                             "name": name,
+                             "epochs": epochs}
+
+
+@sync_to_async
+def fit_user_model(user_id, model, epochs):
+    usage_models[user_id]['model'] = model
+    usage_models[user_id]['epochs'] = usage_models[user_id]['epochs'] + epochs
 
 
 @sync_to_async
