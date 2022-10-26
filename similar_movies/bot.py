@@ -23,6 +23,11 @@ bot = Bot(token=TOKEN, parse_mode=types.ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
+embedding_model_names = {"1": "На основе всех ссылок",
+                         "2": "На основе всех ссылок (исключая дубли)",
+                         "3": "На основе ссылок категорий",
+                         "4": "На основе ссылок на фильмы"}
+
 
 class MessageStates(StatesGroup):
     start_action = State()
@@ -30,6 +35,7 @@ class MessageStates(StatesGroup):
     similar_link = State()
     recommend_movie_best = State()
     recommend_movie_worst = State()
+    embedding_size = State()
 
 
 def get_dates_keyboard():
@@ -84,7 +90,6 @@ async def get_model(callback_query: types.CallbackQuery, state: FSMContext):
                                         reply_markup=keyboard)
 
 
-# Вывод списка рейсов
 @dp.callback_query_handler(lambda c: c.data == 'similar_movies', state=MessageStates.start_action)
 async def similar_movies(callback_query: types.CallbackQuery, state: FSMContext):
     await MessageStates.similar_movie.set()
@@ -104,7 +109,109 @@ async def get_similar_film(message: types.Message, state: FSMContext):
         await message.answer(f"Похожие фильмы: \n{similar_films}")
     else:
         similar_films = "\n ".join([film.name for film in films])
-        await message.answer(f"Не найден фильм с таким названием, попробуйте ещё раз.\nСписок похожих фильмов: {similar_films}")
+        await message.answer("Не найден фильм с таким названием, попробуйте ещё раз.\n"
+                             f"Список похожих фильмов: {similar_films}")
+
+
+@dp.callback_query_handler(lambda c: c.data == 'similar_links', state=MessageStates.start_action)
+async def similar_links(callback_query: types.CallbackQuery, state: FSMContext):
+    await MessageStates.similar_link.set()
+    await callback_query.message.delete()
+    await callback_query.message.answer('Введите название ссылки:')
+    await bot.answer_callback_query(callback_query.id)
+
+
+@dp.message_handler(state=MessageStates.similar_link)
+async def get_similar_link(message: types.Message, state: FSMContext):
+    links, find = await bd.find_similar_link(message.text)
+    if find:
+        async with state.proxy() as state_data:
+            model_id = state_data['model_id']
+        model = await bd.get_model(model_id)
+        similar_links = "\n".join(get_similar_films(model, links.name))
+        await message.answer(f"Похожие ссылки: \n{similar_links}")
+    else:
+        similar_links = "\n ".join([link.name for link in links])
+        await message.answer("Не найдена ссылка с таким названием, попробуйте ещё раз.\n"
+                             f"Список похожих ссылок: {similar_links}")
+
+
+@dp.callback_query_handler(lambda c: c.data == 'recommend_movies', state=MessageStates.start_action)
+async def recommend_movie_best(callback_query: types.CallbackQuery, state: FSMContext):
+    await MessageStates.recommend_movie_best.set()
+    await callback_query.message.delete()
+    await callback_query.message.answer('Введите лучшие фильмы (через запятую).\n'
+                                        'Или нажмите на кнопку "По умолчанию", чтобы применить: ')
+    # todo add films
+    await bot.answer_callback_query(callback_query.id)
+
+
+@dp.message_handler(state=MessageStates.recommend_movie_best)
+async def get_recommend_best(message: types.Message, state: FSMContext):
+    recommend_movie_best = message.text.split(", ")
+    if len(recommend_movie_best) > 0:
+        async with state.proxy() as state_data:
+            state_data['best'] = recommend_movie_best
+        await MessageStates.recommend_movie_worst.set()
+        # todo add films
+        await message.answer('Введите худшие фильмы (через запятую).\n'
+                             'Или нажмите на кнопку "По умолчанию", чтобы применить: ')
+    else:
+        # todo add films
+        await message.answer('Введите лучшие фильмы (через запятую).\n'
+                             'Или нажмите на кнопку "По умолчанию", чтобы применить: ')
+
+
+@dp.message_handler(state=MessageStates.recommend_movie_worst)
+async def get_recommend_worst(message: types.Message, state: FSMContext):
+    recommend_movie_worst = message.text.split(", ")
+    if len(recommend_movie_worst) > 0:
+        async with state.proxy() as state_data:
+            recommend_movie_best = state_data['best']
+        best, worst = get_recommend_movies(recommend_movie_best, recommend_movie_worst)
+        await message.answer(f'Лучшие фильмы: {best}\n'
+                             f'Худшие фильмы: {worst}')
+    else:
+        # todo add films
+        await message.answer('Введите худшие фильмы (через запятую).\n'
+                             'Или нажмите на кнопку "По умолчанию", чтобы применить: ')
+
+
+@dp.callback_query_handler(lambda c: c.data == 'create_model', state=MessageStates.start_action)
+async def load_model(callback_query: types.CallbackQuery, state: FSMContext):
+    keyboard = types.InlineKeyboardMarkup()
+    for model_id, model_name in embedding_model_names.items():
+        keyboard.add(types.InlineKeyboardButton(model_name, callback_data=f'new_model_{model_id}'))
+    keyboard.add(types.InlineKeyboardButton('Выход', callback_data='exit'))
+    await callback_query.message.edit_text('Выберите какую модель хотите обучить',
+                                           reply_markup=keyboard)
+    await bot.answer_callback_query(callback_query.id)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('get_model_'), state=MessageStates.start_action)
+async def get_model(callback_query: types.CallbackQuery, state: FSMContext):
+    async with state.proxy() as state_data:
+        state_data['new_id'] = callback_query.data.split("_")[-1]
+    await callback_query.message.delete()
+
+    # todo add size
+    await callback_query.message.answer('Укажите embedding_size.\n'
+                                        'Или нажмите на кнопку "По умолчанию", чтобы применить: ')
+
+# todo доделать.
+@dp.message_handler(state=MessageStates.similar_movie)
+async def get_similar_film(message: types.Message, state: FSMContext):
+    films, find = await bd.find_similar_film(message.text)
+    if find:
+        async with state.proxy() as state_data:
+            model_id = state_data['model_id']
+        model = await bd.get_model(model_id)
+        similar_films = "\n".join(get_similar_films(model, films.name))
+        await message.answer(f"Похожие фильмы: \n{similar_films}")
+    else:
+        similar_films = "\n ".join([film.name for film in films])
+        await message.answer("Не найден фильм с таким названием, попробуйте ещё раз.\n"
+                             f"Список похожих фильмов: {similar_films}")
 #
 #
 #

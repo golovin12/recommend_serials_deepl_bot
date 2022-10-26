@@ -25,9 +25,17 @@ def get_user_models(user_id):
 
 @sync_to_async
 def find_similar_film(film):
-    print([film])
     movies = models.Movie.objects.filter(name__iexact=film)
     if movies.count() == 1:
         return movies.first(), True
     movies = models.Movie.objects.filter(name__icontains=film)
     return movies, False
+
+
+@sync_to_async
+def find_similar_link(link):
+    links = models.Link.objects.filter(name__iexact=link)
+    if links.count() == 1:
+        return links.first(), True
+    links = models.Link.objects.filter(name__icontains=link)
+    return links, False

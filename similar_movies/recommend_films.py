@@ -113,7 +113,7 @@ class AllLinksEmbedding:
         closest = np.argsort(dists)[-10:]
         result = []
         for c in reversed(closest):
-            result.append(f"{c} {self.movies[c][0]} {dists[c]}")
+            result.append(f"{self.movies[c][0]} {round(dists[c], 3)}")
         return result
 
     def similar_links(self, link):
@@ -122,7 +122,7 @@ class AllLinksEmbedding:
         closest = np.argsort(dists)[-10:]
         result = []
         for c in reversed(closest):
-            result.append(f"{c} {self.top_links[c]} {dists[c]}")
+            result.append(f"{self.top_links[c]} {round(dists[c], 3)}")
         return result
 
     def save(self, model_path):
