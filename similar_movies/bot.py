@@ -1,4 +1,3 @@
-import json
 import locale
 
 from aiogram import Bot, types
@@ -14,9 +13,9 @@ from similar_movies.recommend_films import (
     CategoryEmbedding, fit_embedding_model, add_fit_my_model
 )
 import bd
+import config
 
-TOKEN = "5111173937:AAHfb2UN0mnRhBLJ4m7Xk7r7DYu44uQH2LQ"
-NAME = "Test_telegram_bot"
+TOKEN = config.TOKEN
 
 locale.setlocale(locale.LC_ALL, "ru_RU.utf8")
 
@@ -190,17 +189,25 @@ async def get_recommend_worst(message: types.Message, state: FSMContext):
     else:
         recommend_movie_worst = message.text.split(", ")
     if len(recommend_movie_worst) > 0:
-        await MessageStates.recommend_movie_best.set()
-        async with state.proxy() as state_data:
-            recommend_movie_best = state_data['best']
-            model_id = state_data['model_id']
-        model = await bd.get_model(model_id)
-        model = model.get("model")
-        best, worst = get_recommend_movies(model, recommend_movie_best, recommend_movie_worst)
-        best = "\n* ".join(best)
-        worst = "\n* ".join(worst)
-        await message.answer(f'Лучшие фильмы: \n{best}\n\n'
-                             f'Худшие фильмы: \n{worst}')
+        try:
+            await MessageStates.recommend_movie_best.set()
+            async with state.proxy() as state_data:
+                recommend_movie_best = state_data['best']
+                model_id = state_data['model_id']
+            model = await bd.get_model(model_id)
+            model = model.get("model")
+            best, worst = get_recommend_movies(model, recommend_movie_best, recommend_movie_worst)
+            best = "\n* ".join(best)
+            worst = "\n* ".join(worst)
+            await message.answer(f'Лучшие фильмы: \n{best}\n\n'
+                                 f'Худшие фильмы: \n{worst}')
+        except Exception as e:
+            keyboard = types.ReplyKeyboardMarkup()
+            keyboard.add(types.KeyboardButton("По умолчанию"))
+            await message.answer(f"Не удалось получить рекомендации: {e}")
+            await message.answer('Введите лучшие фильмы (через запятую).\n'
+                                 'Или нажмите на кнопку "По умолчанию", чтобы применить: \n\n'
+                                 f'{", ".join(best_films)}', reply_markup=keyboard)
     else:
         keyboard = types.ReplyKeyboardMarkup()
         keyboard.add(types.KeyboardButton("По умолчанию"))
@@ -277,9 +284,10 @@ async def get_similar_film(callback_query: types.CallbackQuery, state: FSMContex
     keyboard = types.ReplyKeyboardMarkup()
     keyboard.add(types.KeyboardButton("По умолчанию"))
     await MessageStates.fit_my_model.set()
-    await callback_query.message.answer("Введите количество эпох обучения, positive_samples_per_batch и negative_ratio\n"
-                         "Или нажмите на кнопку 'По умолчанию', чтобы применить: 15, 512, 10",
-                         reply_markup=keyboard)
+    await callback_query.message.answer(
+        "Введите количество эпох обучения, positive_samples_per_batch и negative_ratio\n"
+        "Или нажмите на кнопку 'По умолчанию', чтобы применить: 15, 512, 10",
+        reply_markup=keyboard)
     await bot.answer_callback_query(callback_query.id)
 
 
@@ -313,4 +321,4 @@ def main():
 
 
 if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True, on_shutdown=shutdown)
+    main()

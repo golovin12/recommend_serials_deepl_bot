@@ -8,7 +8,7 @@ django.setup()
 
 import json
 
-with open('wp_movies_10k.ndjson') as fin:
+with open('similar_movies/wp_movies_10k.ndjson') as fin:
     all_movies = [json.loads(l) for l in fin]
 
 from similar_movies import models

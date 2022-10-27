@@ -1,7 +1,6 @@
 import os
 import django
 from asgiref.sync import sync_to_async
-from django.db.models import Q
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "telegram_models.settings")
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"

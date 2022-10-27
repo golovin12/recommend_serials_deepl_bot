@@ -9,7 +9,6 @@ import keras
 import random
 from sklearn import svm
 
-
 usages_models = dict()
 
 with open('wp_movies_10k.ndjson') as fin:
@@ -132,30 +131,30 @@ class AllLinksEmbedding:
 
 class UnicLinksEmbedding(AllLinksEmbedding):
 
-  def _get_links_counter(self):
-    link_counts = Counter()
-    for movie in self.movies:
-      link_counts.update(list(set(movie[2])))
-    return link_counts
+    def _get_links_counter(self):
+        link_counts = Counter()
+        for movie in self.movies:
+            link_counts.update(list(set(movie[2])))
+        return link_counts
 
 
 class CategoryEmbedding(AllLinksEmbedding):
 
-  def _get_links_counter(self):
-    link_counts = Counter()
-    for movie in self.movies:
-      link_counts.update(list(item for item in movie[2] if item.startswith("Category:")))
-    return link_counts
+    def _get_links_counter(self):
+        link_counts = Counter()
+        for movie in self.movies:
+            link_counts.update(list(item for item in movie[2] if item.startswith("Category:")))
+        return link_counts
 
 
 class FilmEmbedding(AllLinksEmbedding):
 
-  def _get_links_counter(self):
-    link_counts = Counter()
-    unic_names = set(item[0] for item in self.movies)
-    for movie in self.movies:
-      link_counts.update([item for item in movie[2] if item in unic_names])
-    return link_counts
+    def _get_links_counter(self):
+        link_counts = Counter()
+        unic_names = set(item[0] for item in self.movies)
+        for movie in self.movies:
+            link_counts.update([item for item in movie[2] if item in unic_names])
+        return link_counts
 
 
 def _get_default_model():
@@ -173,44 +172,48 @@ def get_similar_links(embedding_model, link):
 
 
 class EstimatedMovie:
-  def __init__(self, embedding_model, train_class, best, worst, **train_params):
-    self.embedding_model = embedding_model
-    self.train_class = train_class
-    self.best = best
-    self.worst = worst
-    self.train_params = train_params
+    def __init__(self, embedding_model, train_class, best, worst, **train_params):
+        self.embedding_model = embedding_model
+        self.train_class = train_class
+        self.best = best
+        self.worst = worst
+        self.train_params = train_params
 
-  def _get_X_y(self):
-    y = np.asarray([1 for _ in self.best] + [0 for _ in self.worst])
-    X = np.asarray([self.embedding_model._get_normalized_movies()[self.embedding_model.movie_to_idx[movie]] for movie in self.best + self.worst])
-    return X, y
+    def _get_X_y(self):
+        y = np.asarray([1 for _ in self.best] + [0 for _ in self.worst])
+        X = np.asarray(
+            [self.embedding_model._get_normalized_movies()[self.embedding_model.movie_to_idx[movie]] for movie in
+             self.best + self.worst])
+        return X, y
 
-  def fit_model(self):
-    self.model = self.train_class(**self.train_params)
-    self.model.fit(*self._get_X_y())
+    def fit_model(self):
+        self.model = self.train_class(**self.train_params)
+        self.model.fit(*self._get_X_y())
 
-  def get_estimated_movie_rating(self, count):
-    estimated_movie_ratings = self.model.decision_function(self.embedding_model._get_normalized_movies())
-    best = np.argsort(estimated_movie_ratings)
-    bests = []
-    for c in reversed(best[-count:]):
-        bests.append(f"{self.embedding_model.movies[c][0]} {str(estimated_movie_ratings[c])[:6]}")
+    def get_estimated_movie_rating(self, count):
+        estimated_movie_ratings = self.model.decision_function(self.embedding_model._get_normalized_movies())
+        best = np.argsort(estimated_movie_ratings)
+        bests = []
+        for c in reversed(best[-count:]):
+            bests.append(f"{self.embedding_model.movies[c][0]} {str(estimated_movie_ratings[c])[:6]}")
 
-    worsts = []
-    for c in best[:count]:
-        worsts.append(f"{self.embedding_model.movies[c][0]} {str(estimated_movie_ratings[c])[:6]}")
-    return bests, worsts
+        worsts = []
+        for c in best[:count]:
+            worsts.append(f"{self.embedding_model.movies[c][0]} {str(estimated_movie_ratings[c])[:6]}")
+        return bests, worsts
 
-  def get_info(self):
-    rotten_y = np.asarray([float(movie[-2][:-1]) / 100 for movie in self.embedding_model.movies if movie[-2]])
-    rotten_X = np.asarray([self.embedding_model._get_normalized_movies()[self.embedding_model.movie_to_idx[movie[0]]] for movie in self.embedding_model.movies if movie[-2]])
-    TRAINING_CUT_OFF = int(len(rotten_X) * 0.8)
-    regr = LinearRegression()
-    regr.fit(rotten_X[:TRAINING_CUT_OFF], rotten_y[:TRAINING_CUT_OFF])
-    error = (regr.predict(rotten_X[TRAINING_CUT_OFF:]) - rotten_y[TRAINING_CUT_OFF:])
-    print('mean square error %2.2f' % np.mean(error ** 2))
-    error = (np.mean(rotten_y[:TRAINING_CUT_OFF]) - rotten_y[TRAINING_CUT_OFF:])
-    print('mean square error %2.2f' % np.mean(error ** 2))
+    def get_info(self):
+        rotten_y = np.asarray([float(movie[-2][:-1]) / 100 for movie in self.embedding_model.movies if movie[-2]])
+        rotten_X = np.asarray(
+            [self.embedding_model._get_normalized_movies()[self.embedding_model.movie_to_idx[movie[0]]] for movie in
+             self.embedding_model.movies if movie[-2]])
+        TRAINING_CUT_OFF = int(len(rotten_X) * 0.8)
+        regr = LinearRegression()
+        regr.fit(rotten_X[:TRAINING_CUT_OFF], rotten_y[:TRAINING_CUT_OFF])
+        error = (regr.predict(rotten_X[TRAINING_CUT_OFF:]) - rotten_y[TRAINING_CUT_OFF:])
+        print('mean square error %2.2f' % np.mean(error ** 2))
+        error = (np.mean(rotten_y[:TRAINING_CUT_OFF]) - rotten_y[TRAINING_CUT_OFF:])
+        print('mean square error %2.2f' % np.mean(error ** 2))
 
 
 def get_recommend_movies(model, best, worst):

@@ -1,0 +1,7 @@
+*.pyc
+*~
+.idea
+__pycache__
+venv
+similar_movies/config.py
+db.sqlite3
