@@ -157,18 +157,24 @@ class FilmEmbedding(AllLinksEmbedding):
         return link_counts
 
 
-def _get_default_model():
+def _get_default_model(model_id=""):
     emb_mod = AllLinksEmbedding(all_movies)
-    emb_mod.model = keras.models.load_model("media/default")
+    emb_mod.model = keras.models.load_model(f"media/default{model_id}")
     return emb_mod
 
 
 def get_similar_films(embedding_model, film):
-    return embedding_model.similar_movies(film)
+    try:
+        return embedding_model.similar_movies(film)
+    except:
+        return ["Фильмы не найдены"]
 
 
 def get_similar_links(embedding_model, link):
-    return embedding_model.similar_links(link)
+    try:
+        return embedding_model.similar_links(link)
+    except:
+        return ["Фильмы не найдены"]
 
 
 class EstimatedMovie:

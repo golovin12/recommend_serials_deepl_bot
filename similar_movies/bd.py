@@ -12,7 +12,22 @@ from recommend_films import _get_default_model
 
 usage_models = {"default": {"model": _get_default_model(),
                             "name": "default",
-                            "epochs": 15}}
+                            "view_name": "На основе всех ссылок",
+                            "epochs": 15},
+                "default2": {"model": _get_default_model('2'),
+                            "name": "default2",
+                            "view_name": "На основе всех ссылок (исключая дубли)",
+                            "epochs": 15},
+                "default3": {"model": _get_default_model('3'),
+                            "name": "default3",
+                            "view_name": "На основе ссылок категорий",
+                            "epochs": 15},
+                "default4": {"model": _get_default_model('4'),
+                            "name": "default4",
+                            "view_name": "На основе ссылок на фильмы",
+                            "epochs": 15},
+                }
+
 
 @sync_to_async
 def get_model(model_id):
@@ -22,17 +37,19 @@ def get_model(model_id):
 @sync_to_async
 def get_user_models(user_id):
     user_model = usage_models.get(user_id)
-    default_model = usage_models.get("default")
+    default_models = (usage_models.get("default"), usage_models.get("default2"), usage_models.get("default3"),
+                      usage_models.get("default4"))
     if user_model:
-        return default_model, user_model
+        return *default_models, user_model
     else:
-        return default_model,
+        return *default_models,
 
 
 @sync_to_async
 def save_user_model(user_id, model, name, epochs):
     usage_models[user_id] = {"model": model,
                              "name": name,
+                             "view_name": name,
                              "epochs": epochs}
 
 

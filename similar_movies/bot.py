@@ -75,8 +75,8 @@ async def load_model(callback_query: types.CallbackQuery, state: FSMContext):
     user_id = str(callback_query.from_user.id)
     user_models = await bd.get_user_models(user_id)
     for model in user_models:
-        model_name = f'{model.get("name", "")} (Эпохи: {model.get("epochs")})'
-        model_id = "default" if model.get("name", "") == "default" else user_id
+        model_name = f'{model.get("view_name", "")} (Эпохи: {model.get("epochs")})'
+        model_id = model["name"] if model.get("name", "").startswith("default") else user_id
         keyboard.add(types.InlineKeyboardButton(str(model_name), callback_data=f'get_model_{model_id}'))
     await callback_query.message.edit_text('Выберите модель, с которой хотите работать:', reply_markup=keyboard)
     await bot.answer_callback_query(callback_query.id)
@@ -93,7 +93,7 @@ async def get_model(callback_query: types.CallbackQuery, state: FSMContext):
     keyboard.add(types.InlineKeyboardButton("Получить похожие фильмы", callback_data="similar_movies"))
     keyboard.add(types.InlineKeyboardButton("Получить похожие ссылки", callback_data="similar_links"))
     keyboard.add(types.InlineKeyboardButton("Получить рекомендации", callback_data="recommend_movies"))
-    if model_id != "default":
+    if not model_id.startswith("default"):
         keyboard.add(types.InlineKeyboardButton("Дообучить модель", callback_data="fit_my_model"))
     await callback_query.message.answer(text='Выберите действие:', reply_markup=keyboard)
     await bot.answer_callback_query(callback_query.id)
@@ -116,11 +116,11 @@ async def get_similar_film(message: types.Message, state: FSMContext):
         model = await bd.get_model(model_id)
         model = model["model"]
         similar_films = "\n* ".join(get_similar_films(model, films.name))
-        await message.answer(f"Похожие фильмы: \n{similar_films}")
+        await message.answer(f"Похожие фильмы: \n* {similar_films}")
     else:
         similar_films = "\n* ".join([film.name for film in films])
         await message.answer("Не найден фильм с таким названием, попробуйте ещё раз.\n"
-                             f"Список похожих фильмов: \n{similar_films}")
+                             f"Возможно вы искали: \n* {similar_films}")
 
 
 @dp.callback_query_handler(lambda c: c.data == 'similar_links', state=MessageStates.start_action)
@@ -140,11 +140,11 @@ async def get_similar_link(message: types.Message, state: FSMContext):
         model = await bd.get_model(model_id)
         model = model.get("model")
         similar_links = "\n* ".join(get_similar_links(model, links.name))
-        await message.answer(f"Похожие ссылки: \n{similar_links}")
+        await message.answer(f"Похожие ссылки: \n* {similar_links}")
     else:
         similar_links = "\n* ".join([link.name for link in links])
         await message.answer("Не найдена ссылка с таким названием, попробуйте ещё раз.\n"
-                             f"Список похожих ссылок: \n{similar_links}")
+                             f"Возможно вы искали: \n* {similar_links}")
 
 
 @dp.callback_query_handler(lambda c: c.data == 'recommend_movies', state=MessageStates.start_action)
@@ -199,8 +199,8 @@ async def get_recommend_worst(message: types.Message, state: FSMContext):
             best, worst = get_recommend_movies(model, recommend_movie_best, recommend_movie_worst)
             best = "\n* ".join(best)
             worst = "\n* ".join(worst)
-            await message.answer(f'Лучшие фильмы: \n{best}\n\n'
-                                 f'Худшие фильмы: \n{worst}')
+            await message.answer(f'Лучшие фильмы: \n* {best}\n\n'
+                                 f'Худшие фильмы: \n* {worst}')
         except Exception as e:
             keyboard = types.ReplyKeyboardMarkup()
             keyboard.add(types.KeyboardButton("По умолчанию"))
