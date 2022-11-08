@@ -157,8 +157,13 @@ class FilmEmbedding(AllLinksEmbedding):
         return link_counts
 
 
+model_to_id = {"2": UnicLinksEmbedding,
+               "3": CategoryEmbedding,
+               "4": FilmEmbedding}
+
+
 def _get_default_model(model_id=""):
-    emb_mod = AllLinksEmbedding(all_movies)
+    emb_mod = model_to_id.get(model_id, AllLinksEmbedding)(all_movies)
     emb_mod.model = keras.models.load_model(f"media/default{model_id}")
     return emb_mod
 
