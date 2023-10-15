@@ -1,13 +1,12 @@
 import json
-from collections import Counter
-from keras.models import Model
-from keras.layers import Embedding, Input, Reshape
-from keras.layers.merge import Dot
-from sklearn.linear_model import LinearRegression
 import numpy as np
 import keras
 import random
+from collections import Counter
+from keras.layers import Embedding, Input, Reshape, Dot
+from keras.models import Model
 from sklearn import svm
+from sklearn.linear_model import LinearRegression
 
 usages_models = dict()
 
